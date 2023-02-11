@@ -44,19 +44,24 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
 
     // loop until convergence
     while ((e > eps) && (n < nmax)) { // step k
-      // residual
+      // difference between two consecutive iterations
       e = 0.0;
 
-        // loop over each element of the discretized domain
+      // loop over each element of the discretized domain
         for (int ix = 1; ix < (nx - 1); ix++) {
             for (int iy = 1; iy < (ny - 1); iy++) {
               double d;
 
-              vp[iy * nx + ix] =
-                -0.25 * (f[iy * nx + ix] - (v[nx * iy + ix + 1] + v[nx * iy + ix - 1] +
-                                            v[nx * (iy + 1) + ix] + v[nx * (iy - 1) + ix]));
+              // compute v^{k+1}
+              vp[iy * nx + ix]                   // v_{i,j}
+                = -0.25                          // 1/t_{i,i} --> this is D^-1
+                * (f[iy * nx + ix]               // f_{i,j}
+                   - (v[nx * iy + ix + 1]        // v_{i+1,j} -->
+                      + v[nx * iy + ix - 1]      // v_{i-1,j} --> this is R*v
+                      + v[nx * (iy + 1) + ix]    // v_{i,j+1} -->
+                      + v[nx * (iy - 1) + ix])); // v_{i,j-1} -->
 
-              // compute residual at step k
+              // compute difference between iteration k and k-1
               d = fabs(vp[nx * iy + ix] - v[nx * iy + ix]);
               e = (d > e) ? d : e;
             }
@@ -66,6 +71,7 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
 
       double w = 0.0;
 
+      // compute weight inside the domain
         for (int ix = 1; ix < (nx - 1); ix++) {
             for (int iy = 1; iy < (ny - 1); iy++) {
               v[nx * iy + ix] = vp[nx * iy + ix];
@@ -73,19 +79,26 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
             }
         }
 
+      // compute weight on boundaries
         for (int ix = 1; ix < (nx - 1); ix++) {
-          v[nx * 0 + ix]        = v[nx * (ny - 2) + ix];
+          // y = 0
+          v[nx * 0 + ix] = v[nx * (ny - 2) + ix];
+          // y = NY
           v[nx * (ny - 1) + ix] = v[nx * 1 + ix];
           w += fabs(v[nx * 0 + ix]) + fabs(v[nx * (ny - 1) + ix]);
         }
 
         for (int iy = 1; iy < (ny - 1); iy++) {
-          v[nx * iy + 0]        = v[nx * iy + (nx - 2)];
+          // x = 0
+          v[nx * iy + 0] = v[nx * iy + (nx - 2)];
+          // x = NX
           v[nx * iy + (nx - 1)] = v[nx * iy + 1];
           w += fabs(v[nx * iy + 0]) + fabs(v[nx * iy + (nx - 1)]);
         }
 
+      // update weight by domain size
       w /= (nx * ny);
+      // update difference of consecutive iterations
       e /= w;
 
       // if ((n % 10) == 0)
