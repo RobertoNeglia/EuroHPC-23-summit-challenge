@@ -44,12 +44,12 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
 
     // loop until convergence
     while ((e > eps) && (n < nmax)) { // step k
-      // difference between two consecutive iterations
+      // max difference between two consecutive iterations
       e = 0.0;
 
       // loop over each element of the discretized domain
-        for (int ix = 1; ix < (nx - 1); ix++) {
-            for (int iy = 1; iy < (ny - 1); iy++) {
+        for (int iy = 1; iy < (ny - 1); iy++) {
+            for (int ix = 1; ix < (nx - 1); ix++) {
               double d;
 
               // compute v^{k+1}
@@ -72,8 +72,8 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
       double w = 0.0;
 
       // compute weight inside the domain
-        for (int ix = 1; ix < (nx - 1); ix++) {
-            for (int iy = 1; iy < (ny - 1); iy++) {
+        for (int iy = 1; iy < (ny - 1); iy++) {
+            for (int ix = 1; ix < (nx - 1); ix++) {
               v[nx * iy + ix] = vp[nx * iy + ix];
               w += fabs(v[nx * iy + ix]);
             }

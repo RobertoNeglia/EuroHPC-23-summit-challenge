@@ -57,16 +57,17 @@ main() {
   printf("Matrix size: %d\n", NX * NY);
 
   // Initialize input
-  for (int iy = 0; iy < NY; iy++)
-      for (int ix = 0; ix < NX; ix++) {
-        // initial guess is 0
-        v[NX * iy + ix] = 0.0;
+    for (int iy = 0; iy < NY; iy++) {
+        for (int ix = 0; ix < NX; ix++) {
+          // initial guess is 0
+          v[NX * iy + ix] = 0.0;
 
-        const double x = 2.0 * ix / (NX - 1.0) - 1.0;
-        const double y = 2.0 * iy / (NY - 1.0) - 1.0;
-        // forcing term is a sinusoid
-        f[NX * iy + ix] = sin(x + y);
-      }
+          const double x = 2.0 * ix / (NX - 1.0) - 1.0;
+          const double y = 2.0 * iy / (NY - 1.0) - 1.0;
+          // forcing term is a sinusoid
+          f[NX * iy + ix] = sin(x + y);
+        }
+    }
 
   const clock_t start = clock();
   // Call solver
@@ -80,6 +81,13 @@ main() {
   // for (int iy = 0; iy < NY; iy++)
   //   for (int ix = 0; ix < NX; ix++)
   //     printf("%d,%d,%e\n", ix, iy, v[iy * NX + ix]);
+
+  FILE *file = fopen("serial_solution.csv", "w");
+  fprintf(file, "x,y,v\n");
+  for (int iy = 0; iy < NY; iy++)
+    for (int ix = 0; ix < NX; ix++)
+      fprintf(file, "%d,%d,%lf\n", ix, iy, v[iy * NX + ix]);
+  fclose(file);
 
   // Clean-up
   free(v);
