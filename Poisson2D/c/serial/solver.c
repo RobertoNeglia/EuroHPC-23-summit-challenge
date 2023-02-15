@@ -37,15 +37,20 @@ int
 solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
   int     n = 0;
   double  e = 2. * eps;
-  double *vp;
+  double *v_copy, *v_old, *v_new, *swap;
 
   // temp approximate solution vector
-  vp = (double *)malloc(nx * ny * sizeof(double));
+  v_copy = (double *)malloc(nx * ny * sizeof(double));
+
+  v_old = &v[0]; // old
+  v_new = &v_copy[0];
 
     // loop until convergence
     while ((e > eps) && (n < nmax)) { // step k
       // max difference between two consecutive iterations
       e = 0.0;
+
+      double w = 0.0;
 
       // loop over each element of the discretized domain
         for (int iy = 1; iy < (ny - 1); iy++) {
@@ -53,47 +58,43 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
               double d;
 
               // compute v^{k+1}
-              vp[iy * nx + ix]                   // v_{i,j}
-                = -0.25                          // 1/t_{i,i} --> this is D^-1
-                * (f[iy * nx + ix]               // f_{i,j}
-                   - (v[nx * iy + ix + 1]        // v_{i+1,j} -->
-                      + v[nx * iy + ix - 1]      // v_{i-1,j} --> this is R*v
-                      + v[nx * (iy + 1) + ix]    // v_{i,j+1} -->
-                      + v[nx * (iy - 1) + ix])); // v_{i,j-1} -->
+              v_new[iy * nx + ix]                    // v_{i,j}
+                = -0.25                              // 1/t_{i,i} --> this is D^-1
+                * (f[iy * nx + ix]                   // f_{i,j}
+                   - (v_old[nx * iy + ix + 1]        // v_{i+1,j} -->
+                      + v_old[nx * iy + ix - 1]      // v_{i-1,j} --> this is R*v
+                      + v_old[nx * (iy + 1) + ix]    // v_{i,j+1} -->
+                      + v_old[nx * (iy - 1) + ix])); // v_{i,j-1} -->
 
               // compute difference between iteration k and k-1
-              d = fabs(vp[nx * iy + ix] - v[nx * iy + ix]);
+              d = fabs(v_new[nx * iy + ix] - v_old[nx * iy + ix]);
               e = (d > e) ? d : e;
+              w += fabs(v_new[nx * iy + ix]);
             }
         }
+      // swap pointers
+      swap  = v_new;
+      v_new = v_old;
+      v_old = swap;
+      // now inside v_old there is the updated solution
 
       // Update v and compute error as well as error weight factor
 
-      double w = 0.0;
-
-      // compute weight inside the domain
-        for (int iy = 1; iy < (ny - 1); iy++) {
-            for (int ix = 1; ix < (nx - 1); ix++) {
-              v[nx * iy + ix] = vp[nx * iy + ix];
-              w += fabs(v[nx * iy + ix]);
-            }
-        }
-
-      // compute weight on boundaries
+        // compute weight on boundaries & apply boundary conditions
         for (int ix = 1; ix < (nx - 1); ix++) {
           // y = 0
-          v[nx * 0 + ix] = v[nx * (ny - 2) + ix];
+          v_old[nx * 0 + ix] = v_old[nx * (ny - 2) + ix];
           // y = NY
-          v[nx * (ny - 1) + ix] = v[nx * 1 + ix];
-          w += fabs(v[nx * 0 + ix]) + fabs(v[nx * (ny - 1) + ix]);
+          v_old[nx * (ny - 1) + ix] = v_old[nx * 1 + ix];
+          w += fabs(v_old[nx * 0 + ix]) + fabs(v_old[nx * (ny - 1) + ix]);
         }
 
         for (int iy = 1; iy < (ny - 1); iy++) {
           // x = 0
-          v[nx * iy + 0] = v[nx * iy + (nx - 2)];
+          v_old[nx * iy + 0] = v_old[nx * iy + (nx - 2)];
           // x = NX
-          v[nx * iy + (nx - 1)] = v[nx * iy + 1];
-          w += fabs(v[nx * iy + 0]) + fabs(v[nx * iy + (nx - 1)]);
+          v_old[nx * iy + (nx - 1)] = v_old[nx * iy + 1];
+          w += fabs(v_old[nx * iy + 0]) + fabs(v_old[nx * iy + (nx - 1)]);
         }
 
       // update weight by domain size
@@ -107,7 +108,15 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
       n++;
     }
 
-  free(vp);
+    if (n % 2) {
+      v      = v_new;
+      v_copy = v_old;
+    } else {
+      v      = v_old;
+      v_copy = v_new;
+    }
+
+  free(v_copy);
 
   if (e < eps)
     printf("Converged after %d iterations (nx=%d, ny=%d, e=%.2e)\n", n, nx, ny, e);

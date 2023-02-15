@@ -27,15 +27,16 @@
  */
 
 #include <math.h>
+#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
 #ifndef NX
-#  define NX 1024
+#  define NX 128
 #endif
 #ifndef NY
-#  define NY 16
+#  define NY 128
 #endif
 #define NMAX 200000
 #define EPS 1e-5
@@ -69,12 +70,12 @@ main() {
         }
     }
 
-  const clock_t start = clock();
+  const double start = omp_get_wtime();
   // Call solver
   solver(v, f, NX, NY, EPS, NMAX);
-  const clock_t end = clock();
+  const double end = omp_get_wtime();
 
-  const double dt = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  const double dt = (end - start) * 1000;
   printf("Time elapsed: %f[ms]\n", dt);
 
   // prints the approximate solution
@@ -82,12 +83,16 @@ main() {
   //   for (int ix = 0; ix < NX; ix++)
   //     printf("%d,%d,%e\n", ix, iy, v[iy * NX + ix]);
 
-  FILE *file = fopen("serial_solution.csv", "w");
+  char *filename = "solution.csv";
+
+  FILE *file = fopen(filename, "w");
   fprintf(file, "x,y,v\n");
   for (int iy = 0; iy < NY; iy++)
     for (int ix = 0; ix < NX; ix++)
       fprintf(file, "%d,%d,%lf\n", ix, iy, v[iy * NX + ix]);
   fclose(file);
+
+  printf("Output written to %s\n", filename);
 
   // Clean-up
   free(v);

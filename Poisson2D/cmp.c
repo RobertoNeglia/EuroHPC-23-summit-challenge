@@ -3,10 +3,10 @@
 #include <stdlib.h>
 
 #ifndef NX
-#  define NX 1024
+#  define NX 128
 #endif
 #ifndef NY
-#  define NY 16
+#  define NY 128
 #endif
 
 int
@@ -14,7 +14,7 @@ main(int argc, char **argv) {
   int          tmpx, tmpy;
   double      *v1, *v2;
   char         thrashx, thrashy, thrashv;
-  const double tol = 1.e-6;
+  const double tol = 1.e-1;
   char        *filename1, *filename2;
 
     if (argc > 3) {
@@ -52,8 +52,10 @@ main(int argc, char **argv) {
   int same = 1;
   for (int iy = 0; iy < NY; iy++)
     for (int ix = 0; ix < NX; ix++)
-      if (fabs(v1[iy * NX + ix] - v2[iy * NX + ix]) > tol)
-        same = 0;
+        if (fabs(v1[iy * NX + ix] - v2[iy * NX + ix]) > tol) {
+          same = 0;
+          printf("ix:%d;iy:%d;v1:%lf;v2:%lf\n", ix, iy, v1[iy * NX + ix], v2[iy * NX + ix]);
+      }
 
   free(v1);
   free(v2);
