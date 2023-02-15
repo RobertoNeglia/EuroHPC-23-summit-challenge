@@ -14,7 +14,7 @@ main(int argc, char **argv) {
   int          tmpx, tmpy;
   double      *v1, *v2;
   char         thrashx, thrashy, thrashv;
-  const double tol = 1.e-1;
+  const double tol = 1.e-5;
   char        *filename1, *filename2;
 
     if (argc > 3) {

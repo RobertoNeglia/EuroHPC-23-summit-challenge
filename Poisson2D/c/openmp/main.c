@@ -39,7 +39,7 @@
 #  define NY 128
 #endif
 #define NMAX 200000
-#define EPS 1e-5
+#define EPS 1e-8
 
 int
 solver(double *, double *, int, int, double, int);
