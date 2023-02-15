@@ -37,59 +37,100 @@
 #ifndef NY
 #  define NY 128
 #endif
-#define NMAX 200000
-#define EPS 1e-8
+#ifndef BLOCK_SIZE
+#  define BLOCK_SIZE 8
+#endif
+#define NMAX 20000
 
-int
-solver(double *, double *, int, int, double, int);
+__global__ void
+solver(double * /*in*/, double * /*forcing term*/, int /*NX*/, int /*NY*/, double * /*out*/);
+
+__global__ void
+apply_boundary(double *, int, int);
 
 int
 main() {
   double *v;
+  double *vp;
   double *f;
+  double *sol;
 
   // Allocate memory
-  v = (double *)malloc(NX * NY * sizeof(double));
-  f = (double *)malloc(NX * NY * sizeof(double));
+  // approximate solution vector & update vector
+  cudaMallocManaged(&v, NX * NY * sizeof(double));
+  cudaMallocManaged(&vp, NX * NY * sizeof(double));
+  // forcing term
+  cudaMallocManaged(&f, NX * NY * sizeof(double));
 
   printf("Matrix size: %d\n", NX * NY);
 
-  // Initialise input
-  for (int iy = 0; iy < NY; iy++)
-      for (int ix = 0; ix < NX; ix++) {
-        v[NX * iy + ix] = 0.0;
+  // Initialize input
+    for (int iy = 0; iy < NY; iy++) {
+        for (int ix = 0; ix < NX; ix++) {
+          // initial guess is 0
+          v[NX * iy + ix]  = 0.0;
+          vp[NX * iy + ix] = 0.0;
 
-        const double x  = 2.0 * ix / (NX - 1.0) - 1.0;
-        const double y  = 2.0 * iy / (NY - 1.0) - 1.0;
-        f[NX * iy + ix] = sin(x + y);
-      }
+          const double x = 2.0 * ix / (NX - 1.0) - 1.0;
+          const double y = 2.0 * iy / (NY - 1.0) - 1.0;
+          // forcing term is a sinusoid
+          f[NX * iy + ix] = sin(x + y);
+        }
+    }
 
-  const clock_t start = clock();
-  // Call solver
-  solver(v, f, NX, NY, EPS, NMAX);
-  const clock_t end = clock();
+  printf("Data initialized\n");
 
-  const double dt = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
+  cudaEvent_t start, end;
+  cudaEventCreate(&start);
+  cudaEventCreate(&end);
+
+  dim3 dimGrid((NX + BLOCK_SIZE - 1) / BLOCK_SIZE, (NY + BLOCK_SIZE - 1) / BLOCK_SIZE);
+  dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+
+  int n = 0;
+  cudaEventRecord(start, 0);
+    while ((n < NMAX)) {
+        // Call solver
+        if (n % 2) {
+          solver<<<dimGrid, dimBlock>>>(vp, f, NX, NY, v);
+          cudaDeviceSynchronize();
+          apply_boundary<<<dimGrid, dimBlock>>>(v, NX, NY);
+        } else {
+          solver<<<dimGrid, dimBlock>>>(v, f, NX, NY, vp);
+          cudaDeviceSynchronize();
+          apply_boundary<<<dimGrid, dimBlock>>>(vp, NX, NY);
+        }
+      cudaDeviceSynchronize();
+      n++;
+    }
+  cudaEventRecord(end, 0);
+  cudaEventSynchronize(end);
+
+    if (n % 2) {
+      sol = v;
+    } else {
+      sol = vp;
+    }
+
+  float dt;
+  cudaEventElapsedTime(&dt, start, end);
   printf("Time elapsed: %f[ms]\n", dt);
 
-  // for (int iy = 0; iy < NY; iy++)
-  //     for (int ix = 0; ix < NX; ix++)
-  //         printf("%d,%d,%e\n", ix, iy, v[iy*NX+ix]);
-
-  const char *filename = "given_solution.csv";
+  const char *filename = "solution.csv";
 
   FILE *file = fopen(filename, "w");
   fprintf(file, "x,y,v\n");
   for (int iy = 0; iy < NY; iy++)
     for (int ix = 0; ix < NX; ix++)
-      fprintf(file, "%d,%d,%lf\n", ix, iy, v[iy * NX + ix]);
+      fprintf(file, "%d,%d,%lf\n", ix, iy, sol[iy * NX + ix]);
   fclose(file);
 
   printf("Output written to %s\n", filename);
 
   // Clean-up
-  free(v);
-  free(f);
+  cudaFree(v);
+  cudaFree(vp);
+  cudaFree(f);
 
   return 0;
 }

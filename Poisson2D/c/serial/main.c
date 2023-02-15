@@ -82,7 +82,7 @@ main() {
   //   for (int ix = 0; ix < NX; ix++)
   //     printf("%d,%d,%e\n", ix, iy, v[iy * NX + ix]);
 
-  char *filename = "solution.csv";
+  const char *filename = "solution.csv";
 
   FILE *file = fopen(filename, "w");
   fprintf(file, "x,y,v\n");
