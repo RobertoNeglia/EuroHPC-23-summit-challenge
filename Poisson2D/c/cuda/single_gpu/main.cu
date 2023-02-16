@@ -38,22 +38,42 @@
 #  define NY 128
 #endif
 #ifndef BLOCK_SIZE
-#  define BLOCK_SIZE 8
+#  define BLOCK_SIZE 16
 #endif
-#define NMAX 20000
+#define NMAX 100
+#define SUB_ITER 100
+#define EPS 1e-5
 
 __global__ void
 solver(double * /*in*/, double * /*forcing term*/, int /*NX*/, int /*NY*/, double * /*out*/);
 
 __global__ void
-apply_boundary(double *, int, int);
+apply_bcs(double * /*sol*/, const int /*NX*/, const int /*NY*/);
+
+__global__ void
+compute_error(const double * /*sol*/,
+              const double * /*old_sol*/,
+              const int /*size (NX*NY)*/,
+              double * /*error*/,
+              double * /*weight*/);
 
 int
 main() {
   double *v;
   double *vp;
   double *f;
-  double *sol;
+  double *w;
+  double *e;
+
+  int size = NX * NY;
+
+  dim3 jacobiGrid((NX + BLOCK_SIZE - 1) / BLOCK_SIZE, (NY + BLOCK_SIZE - 1) / BLOCK_SIZE);
+  dim3 jacobiBlock(BLOCK_SIZE, BLOCK_SIZE);
+
+  int block_dim = BLOCK_SIZE * BLOCK_SIZE;
+
+  dim3 errorGrid(((NX * NY) + block_dim - 1) / block_dim);
+  dim3 errorBlock(block_dim);
 
   // Allocate memory
   // approximate solution vector & update vector
@@ -61,8 +81,12 @@ main() {
   cudaMallocManaged(&vp, NX * NY * sizeof(double));
   // forcing term
   cudaMallocManaged(&f, NX * NY * sizeof(double));
+  // error
+  cudaMallocManaged(&w, errorGrid.x * sizeof(double));
+  cudaMallocManaged(&e, errorGrid.x * sizeof(double));
 
-  printf("Matrix size: %d\n", NX * NY);
+  printf("Matrix size: %d\n", size);
+  printf("NX=%d;NY=%d;\n", NX, NY);
 
   // Initialize input
     for (int iy = 0; iy < NY; iy++) {
@@ -78,42 +102,46 @@ main() {
         }
     }
 
-  printf("Data initialized\n");
-
   cudaEvent_t start, end;
   cudaEventCreate(&start);
   cudaEventCreate(&end);
 
-  dim3 dimGrid((NX + BLOCK_SIZE - 1) / BLOCK_SIZE, (NY + BLOCK_SIZE - 1) / BLOCK_SIZE);
-  dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+  double w_sum;
+  double e_max = 2 * EPS;
 
   int n = 0;
   cudaEventRecord(start, 0);
-    while ((n < NMAX)) {
-        // Call solver
-        if (n % 2) {
-          solver<<<dimGrid, dimBlock>>>(vp, f, NX, NY, v);
-          cudaDeviceSynchronize();
-          apply_boundary<<<dimGrid, dimBlock>>>(v, NX, NY);
-        } else {
-          solver<<<dimGrid, dimBlock>>>(v, f, NX, NY, vp);
-          cudaDeviceSynchronize();
-          apply_boundary<<<dimGrid, dimBlock>>>(vp, NX, NY);
+    while (e_max > EPS) {
+        for (int i = 0; i < SUB_ITER / 2; i++) {
+          solver<<<jacobiGrid, jacobiBlock>>>(v, f, NX, NY, vp);
+          apply_bcs<<<jacobiGrid, jacobiBlock>>>(vp, NX, NY);
+          // vp - updated solution
+          solver<<<jacobiGrid, jacobiBlock>>>(vp, f, NX, NY, v);
+          apply_bcs<<<jacobiGrid, jacobiBlock>>>(v, NX, NY);
+          // v - updated solution
         }
+
+      compute_error<<<errorGrid, errorBlock>>>(v, vp, size, e, w);
       cudaDeviceSynchronize();
+      e_max = 0;
+      w_sum = 0;
+        for (int i = 0; i < errorGrid.x; i++) {
+          e_max = (e[i] > e_max) ? e[i] : e_max;
+          w_sum += w[i];
+        }
+
+      w_sum /= size;
+      e_max /= w_sum;
+
       n++;
     }
   cudaEventRecord(end, 0);
   cudaEventSynchronize(end);
 
-    if (n % 2) {
-      sol = v;
-    } else {
-      sol = vp;
-    }
-
   float dt;
   cudaEventElapsedTime(&dt, start, end);
+  printf(
+    "Converged after %d iterations (nx=%d, ny=%d, e=%.2e)\n", n * SUB_ITER, NX, NY, e_max);
   printf("Time elapsed: %f[ms]\n", dt);
 
   const char *filename = "solution.csv";
@@ -122,7 +150,7 @@ main() {
   fprintf(file, "x,y,v\n");
   for (int iy = 0; iy < NY; iy++)
     for (int ix = 0; ix < NX; ix++)
-      fprintf(file, "%d,%d,%lf\n", ix, iy, sol[iy * NX + ix]);
+      fprintf(file, "%d,%d,%lf\n", ix, iy, v[iy * NX + ix]);
   fclose(file);
 
   printf("Output written to %s\n", filename);
