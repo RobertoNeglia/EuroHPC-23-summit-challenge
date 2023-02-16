@@ -29,6 +29,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <time.h>
 #include <mpi.h>
 
@@ -42,7 +43,24 @@
 #define EPS 1e-8
 
 int
-solver(double *, double *, int, int, double, int, int, int);
+solver(double *, double *, int, int, double, int, int, int*, MPI_Comm);
+
+// void optimale_solution(int p, int* ptr_x, int* ptr_y, int* x_rank, int* y_rank) {
+//   if (NX >= p * NY) {
+//     *ptr_x = ceil(NX /p);
+//     *ptr_y = NY;
+    
+//     return;
+//   }
+//   if (NY >= p * NX) {
+//     *ptr_x = NX;
+//     *ptr_y = ceil(NY / p);
+//     return;
+//   }
+//   *ptr_x = NX / ceil(p/2);
+//   *ptr_y = NY / (p/2);
+//   return;
+// }
 
 int
 main(int argc, char** argv) {
@@ -54,25 +72,38 @@ main(int argc, char** argv) {
 	int rank = 0;
 	int p = 0;
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+  // optimale_solution(dims);
+  int dims[2] = {0,0};
+  MPI_Dims_create(p, 2, dims);
+
+  int periods[2] = {false, false};
+  int reorder = true;
+  MPI_Comm cart;
+  MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, &cart);
+  MPI_Comm_rank(cart, &rank);
+
+  int coords[2];
+  MPI_Cart_coords(cart, rank, 2, coords);
+  
   // Allocate memory
   // approximate solution vector
-  int size = ceil(NX * NY * sizeof(double) / 2);
-  v = (double *)malloc(size);
+  int size[] = {ceil(NX/dims[0]), ceil(NY/dims[1])};
+  
+  v = (double *)malloc(size[0] * size[1] * sizeof(double));
   // forcing term
-  f = (double *)malloc(size);
+  f = (double *)malloc(size[0] * size[1] * sizeof(double));
 
   printf("Matrix size: %d\n", NX * NY);
 
   // Initialize input
-    for (int iy = 0; iy < ceil(NY/2); iy++) {
-        for (int ix = 0; ix < ceil(NX/2); ix++) {
+    for (int iy = 0; iy < size[1]; iy++) {
+        for (int ix = 0; ix < size[0]; ix++) {
           // initial guess is 0
           v[NX * iy + ix] = 0.0;
 
-          const double x = 2.0 * (2 * ix + rank) / (NX - 1.0) - 1.0;
-          const double y = 2.0 * (2 * iy + rank) / (NY - 1.0) - 1.0;
+          const double x = 2.0 * (ix + size[0] * coords[0])  / (NX - 1.0) - 1.0;
+          const double y = 2.0 * (iy + size[1] * coords[1]) / (NY - 1.0) - 1.0;
           // forcing term is a sinusoid
           f[NX * iy + ix] = sin(x + y);
         }
@@ -80,7 +111,7 @@ main(int argc, char** argv) {
 
   const clock_t start = clock();
   // Call solver
-  solver(v, f, NX, NY, EPS, NMAX, p, rank);
+  solver(v, f, size[0], size[1], EPS, NMAX, rank, coords, cart);
   const clock_t end = clock();
 
   //Writing the results
