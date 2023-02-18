@@ -29,7 +29,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 
 #ifndef NX
 #  define NX 128
@@ -40,12 +39,16 @@
 #ifndef BLOCK_SIZE
 #  define BLOCK_SIZE 16
 #endif
-#define NMAX 100
+#define NMAX 200000
 #define SUB_ITER 100
 #define EPS 1e-5
 
 __global__ void
-solver(double * /*in*/, double * /*forcing term*/, int /*NX*/, int /*NY*/, double * /*out*/);
+solver(const double * /*in*/,
+       const double * /*forcing term*/,
+       const int /*NX*/,
+       const int /*NY*/,
+       double * /*out*/);
 
 __global__ void
 apply_bcs(double * /*sol*/, const int /*NX*/, const int /*NY*/);
@@ -59,48 +62,70 @@ compute_error(const double * /*sol*/,
 
 int
 main() {
-  double *v;
-  double *vp;
-  double *f;
-  double *w;
-  double *e;
-
-  int size = NX * NY;
+  // host and device arrays
+  double *h_v, *d_v;
+  double *h_vp, *d_vp;
+  double *h_f, *d_f;
+  double *h_w, *d_w;
+  double *h_e, *d_e;
 
   dim3 jacobiGrid((NX + BLOCK_SIZE - 1) / BLOCK_SIZE, (NY + BLOCK_SIZE - 1) / BLOCK_SIZE);
   dim3 jacobiBlock(BLOCK_SIZE, BLOCK_SIZE);
 
+  int    sol_size       = NX * NY;
+  size_t sol_size_bytes = sol_size * sizeof(double);
+
   int block_dim = BLOCK_SIZE * BLOCK_SIZE;
 
-  dim3 errorGrid(((NX * NY) + block_dim - 1) / block_dim);
+  dim3 errorGrid(((sol_size) + block_dim - 1) / block_dim);
   dim3 errorBlock(block_dim);
 
-  // Allocate memory
-  // approximate solution vector & update vector
-  cudaMallocManaged(&v, NX * NY * sizeof(double));
-  cudaMallocManaged(&vp, NX * NY * sizeof(double));
-  // forcing term
-  cudaMallocManaged(&f, NX * NY * sizeof(double));
-  // error
-  cudaMallocManaged(&w, errorGrid.x * sizeof(double));
-  cudaMallocManaged(&e, errorGrid.x * sizeof(double));
+  int    diff_size       = errorGrid.x;
+  size_t diff_size_bytes = diff_size * sizeof(double);
 
-  printf("Matrix size: %d\n", size);
+  // Host memory allocation
+  // approximate solution vector & update vector
+  h_v  = (double *)calloc(sol_size, sizeof(double));
+  h_vp = (double *)calloc(sol_size, sizeof(double));
+  // forcing term
+  h_f = (double *)calloc(sol_size, sizeof(double));
+  // weight
+  h_w = (double *)calloc(diff_size, sizeof(double));
+  // error
+  h_e = (double *)calloc(diff_size, sizeof(double));
+
+  // Device memory allocation
+  // approximate solution vector & update vector
+  cudaMalloc(&d_v, sol_size_bytes);
+  cudaMalloc(&d_vp, sol_size_bytes);
+  // forcing term
+  cudaMalloc(&d_f, sol_size_bytes);
+  // weight
+  cudaMalloc(&d_w, diff_size_bytes);
+  // error
+  cudaMalloc(&d_e, diff_size_bytes);
+
+  printf("Matrix sol_size: %d\n", sol_size);
   printf("NX=%d;NY=%d;\n", NX, NY);
 
   // Initialize input
     for (int iy = 0; iy < NY; iy++) {
         for (int ix = 0; ix < NX; ix++) {
-          // initial guess is 0
-          v[NX * iy + ix]  = 0.0;
-          vp[NX * iy + ix] = 0.0;
-
           const double x = 2.0 * ix / (NX - 1.0) - 1.0;
           const double y = 2.0 * iy / (NY - 1.0) - 1.0;
           // forcing term is a sinusoid
-          f[NX * iy + ix] = sin(x + y);
+          h_f[NX * iy + ix] = sin(x + y);
         }
     }
+
+  // Copy data from host to device
+  cudaMemcpy(d_v, h_v, sol_size_bytes, cudaMemcpyHostToDevice);
+  cudaMemcpy(d_vp, h_vp, sol_size_bytes, cudaMemcpyHostToDevice);
+  cudaMemcpy(d_f, h_f, sol_size_bytes, cudaMemcpyHostToDevice);
+  cudaMemcpy(d_w, h_w, diff_size_bytes, cudaMemcpyHostToDevice);
+  cudaMemcpy(d_e, h_e, diff_size_bytes, cudaMemcpyHostToDevice);
+
+  printf("DONE\n");
 
   cudaEvent_t start, end;
   cudaEventCreate(&start);
@@ -111,38 +136,42 @@ main() {
 
   int n = 0;
   cudaEventRecord(start, 0);
-    while (e_max > EPS) {
+    while (e_max > EPS && n < NMAX) {
         for (int i = 0; i < SUB_ITER / 2; i++) {
-          solver<<<jacobiGrid, jacobiBlock>>>(v, f, NX, NY, vp);
-          apply_bcs<<<jacobiGrid, jacobiBlock>>>(vp, NX, NY);
+          solver<<<jacobiGrid, jacobiBlock>>>(d_v, d_f, NX, NY, d_vp);
+          apply_bcs<<<jacobiGrid, jacobiBlock>>>(d_vp, NX, NY);
           // vp - updated solution
-          solver<<<jacobiGrid, jacobiBlock>>>(vp, f, NX, NY, v);
-          apply_bcs<<<jacobiGrid, jacobiBlock>>>(v, NX, NY);
+          solver<<<jacobiGrid, jacobiBlock>>>(d_vp, d_f, NX, NY, d_v);
+          apply_bcs<<<jacobiGrid, jacobiBlock>>>(d_v, NX, NY);
           // v - updated solution
         }
-
-      compute_error<<<errorGrid, errorBlock>>>(v, vp, size, e, w);
+      compute_error<<<errorGrid, errorBlock>>>(d_v, d_vp, sol_size, d_e, d_w);
       cudaDeviceSynchronize();
+      cudaMemcpy(h_w, d_w, diff_size_bytes, cudaMemcpyDeviceToHost);
+      cudaMemcpy(h_e, d_e, diff_size_bytes, cudaMemcpyDeviceToHost);
+      // finish reduce on host
       e_max = 0;
       w_sum = 0;
-        for (int i = 0; i < errorGrid.x; i++) {
-          e_max = (e[i] > e_max) ? e[i] : e_max;
-          w_sum += w[i];
+        for (int i = 0; i < diff_size; i++) {
+          e_max = (h_e[i] > e_max) ? h_e[i] : e_max;
+          w_sum += h_w[i];
         }
 
-      w_sum /= size;
+      w_sum /= sol_size;
       e_max /= w_sum;
 
-      n++;
+      n += SUB_ITER;
     }
   cudaEventRecord(end, 0);
   cudaEventSynchronize(end);
 
   float dt;
   cudaEventElapsedTime(&dt, start, end);
-  printf(
-    "Converged after %d iterations (nx=%d, ny=%d, e=%.2e)\n", n * SUB_ITER, NX, NY, e_max);
+  printf("Converged after %d iterations (nx=%d, ny=%d, e=%.2e)\n", n, NX, NY, e_max);
   printf("Time elapsed: %f[ms]\n", dt);
+
+  // copy solution back to host
+  cudaMemcpy(h_v, d_v, sol_size_bytes, cudaMemcpyDeviceToHost);
 
   const char *filename = "solution.csv";
 
@@ -150,15 +179,23 @@ main() {
   fprintf(file, "x,y,v\n");
   for (int iy = 0; iy < NY; iy++)
     for (int ix = 0; ix < NX; ix++)
-      fprintf(file, "%d,%d,%lf\n", ix, iy, v[iy * NX + ix]);
+      fprintf(file, "%d,%d,%lf\n", ix, iy, h_v[iy * NX + ix]);
   fclose(file);
 
   printf("Output written to %s\n", filename);
 
   // Clean-up
-  cudaFree(v);
-  cudaFree(vp);
-  cudaFree(f);
+  cudaFree(d_v);
+  cudaFree(d_vp);
+  cudaFree(d_f);
+  cudaFree(d_w);
+  cudaFree(d_e);
+
+  free(h_v);
+  free(h_vp);
+  free(h_f);
+  free(h_w);
+  free(h_e);
 
   return 0;
 }

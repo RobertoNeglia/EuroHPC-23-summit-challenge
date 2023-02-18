@@ -31,6 +31,8 @@
 # Executables
 **/*.exe
 **/*.out
+**/*.output
+**/*.out.*
 **/*.app
 
 **/build/*
@@ -49,4 +51,10 @@
 **/*.7z
 **/*.tar
 
+# program output
 **/*.csv
+
+# cuda profiling
+**/*.sqlite
+**/*.nsys*
+

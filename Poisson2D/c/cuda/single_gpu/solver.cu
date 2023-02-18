@@ -34,11 +34,11 @@
 #endif
 
 __global__ void
-solver(double *v, double *f, const int nx, const int ny, double *vp) {
+solver(const double *v, const double *f, const int nx, const int ny, double *vp) {
   const int tx = blockIdx.x * blockDim.x + threadIdx.x + 1;
   const int ty = blockIdx.y * blockDim.y + threadIdx.y + 1;
 
-    if (tx < nx && ty < ny) {
+    if ((tx < (nx - 1)) && (ty < (ny - 1))) {
       const int lin_idx = ty * nx + tx;
       vp[lin_idx]                  // v_{i,j}
         = -0.25                    // 1/t_{i,i} --> this is D^-1
@@ -50,12 +50,55 @@ solver(double *v, double *f, const int nx, const int ny, double *vp) {
   }
 }
 
+// __global__ void
+// solver(const double *v, const double *f, const int nx, const int ny, double *vp) {
+//   // thread coordinates
+//   const int tx = blockIdx.x * blockDim.x + threadIdx.x + 1;
+//   const int ty = blockIdx.y * blockDim.y + threadIdx.y + 1;
+
+//   __shared__ double vs[BLOCK_SIZE + 2][BLOCK_SIZE + 2];
+
+//     // load data in shared memory
+//     for (int i = threadIdx.y; i < BLOCK_SIZE + 2; i += BLOCK_SIZE) {
+//         for (int j = threadIdx.x; j < BLOCK_SIZE + 2; j += BLOCK_SIZE) {
+//           const int tx = blockIdx.x * blockDim.x + j;
+//           const int ty = blockIdx.y * blockDim.y + i;
+
+//           double val = 0.0;
+
+//           if (tx < nx && ty < ny)
+//             val = v[ty * nx + tx];
+
+//           vs[i][j] = val;
+//         }
+//     }
+
+//   __syncthreads();
+
+//   // boundary check
+//     if (tx < nx && ty < ny) {
+//       // linearize coordinates
+//       const int lin_idx = ty * nx + tx;
+//       // update solution
+//       vp[lin_idx]                                    // v_{i,j}
+//         = -0.25                                      // 1/t_{i,i} --> this is D^-1
+//         * (f[lin_idx]                                // f_{i,j}
+//            - (vs[threadIdx.y + 0][threadIdx.x + 1]   // v[lin_idx + 1] v_{i+1,j} -->
+//               + vs[threadIdx.y + 2][threadIdx.x + 1] // v[lin_idx - 1] v_{i-1,j} --> this
+//               isR*v
+//               + vs[threadIdx.y + 1][threadIdx.x + 2] // v[lin_idx + nx] v_{i,j+1} -->
+//               + vs[threadIdx.y + 1][threadIdx.x + 0]) // v[lin_idx - nx])); v_{i,j-1} -->
+//           );
+//   }
+// }
+
 __global__ void
 apply_bcs(double *v, const int nx, const int ny) {
+  // thread coordinates
   const int tx = blockIdx.x * blockDim.x + threadIdx.x + 1;
   const int ty = blockIdx.y * blockDim.y + threadIdx.y + 1;
 
-    if (tx < nx && ty < ny) {
+    if ((tx < (nx - 1)) && (ty < (ny - 1))) {
       // y = 0
       v[tx] = v[nx * (ny - 2) + tx];
       // y = NY
