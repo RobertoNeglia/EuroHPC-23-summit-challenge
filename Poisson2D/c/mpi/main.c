@@ -43,9 +43,9 @@
 #define EPS 1e-8
 
 int
-solver(double *, double *, int, int, double, int, int, int*, MPI_Comm);
+solver(double *, double *, int, int, double, int, int, int*, int*, MPI_Comm);
 
-// void optimale_solution(int p, int* ptr_x, int* ptr_y, int* x_rank, int* y_rank) {
+// void optimal_solution(int p, int* ptr_x, int* ptr_y, int* x_rank, int* y_rank) {
 //   if (NX >= p * NY) {
 //     *ptr_x = ceil(NX /p);
 //     *ptr_y = NY;
@@ -73,7 +73,7 @@ main(int argc, char** argv) {
 	int p = 0;
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
 
-  // optimale_solution(dims);
+  // optimal_solution(dims);
   int dims[2] = {0,0};
   MPI_Dims_create(p, 2, dims);
 
@@ -100,18 +100,19 @@ main(int argc, char** argv) {
     for (int iy = 0; iy < size[1]; iy++) {
         for (int ix = 0; ix < size[0]; ix++) {
           // initial guess is 0
-          v[NX * iy + ix] = 0.0;
+          v[size[0] * iy + ix] = 0.0;
 
           const double x = 2.0 * (ix + size[0] * coords[0])  / (NX - 1.0) - 1.0;
           const double y = 2.0 * (iy + size[1] * coords[1]) / (NY - 1.0) - 1.0;
           // forcing term is a sinusoid
-          f[NX * iy + ix] = sin(x + y);
+          f[size[0] * iy + ix] = sin(x + y);
         }
     }
 
+  printf("Begining solver\n");
   const clock_t start = clock();
   // Call solver
-  solver(v, f, size[0], size[1], EPS, NMAX, rank, coords, cart);
+  solver(v, f, size[0], size[1], EPS, NMAX, rank, coords, dims, cart);
   const clock_t end = clock();
 
   //Writing the results
