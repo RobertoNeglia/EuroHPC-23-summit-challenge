@@ -32,6 +32,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <mpi.h>
+#include <string.h>
 
 #ifndef NX
 #  define NX 128
@@ -39,7 +40,7 @@
 #ifndef NY
 #  define NY 128
 #endif
-#define NMAX 200000
+#define NMAX 100000
 #define EPS 1e-8
 
 int
@@ -62,8 +63,7 @@ solver(double *, double *, int, int, double, int, int, int*, int*, MPI_Comm);
 //   return;
 // }
 
-int
-main(int argc, char** argv) {
+int main(int argc, char** argv) {
   double *v;
   double *f;
 
@@ -74,10 +74,11 @@ main(int argc, char** argv) {
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
 
   // optimal_solution(dims);
-  int dims[2] = {0,0};
+  int dims[2] = {0, 0};
   MPI_Dims_create(p, 2, dims);
+  // printf("dims %d %d\n", dims[0], dims[1]);
 
-  int periods[2] = {false, false};
+  int periods[2] = {true, true};
   int reorder = true;
   MPI_Comm cart;
   MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, reorder, &cart);
@@ -88,8 +89,9 @@ main(int argc, char** argv) {
   
   // Allocate memory
   // approximate solution vector
-  int size[] = {ceil(NX/dims[0]), ceil(NY/dims[1])};
-  
+  //We add a row/column at eache side to handle the boundary
+  int size[] = {ceil(NX/dims[0]) + 2, ceil(NY/dims[1]) + 2};
+  // printf("%d, %d\n", size[0], size[1]);
   v = (double *)malloc(size[0] * size[1] * sizeof(double));
   // forcing term
   f = (double *)malloc(size[0] * size[1] * sizeof(double));
@@ -102,14 +104,15 @@ main(int argc, char** argv) {
           // initial guess is 0
           v[size[0] * iy + ix] = 0.0;
 
-          const double x = 2.0 * (ix + size[0] * coords[0])  / (NX - 1.0) - 1.0;
-          const double y = 2.0 * (iy + size[1] * coords[1]) / (NY - 1.0) - 1.0;
+          const double x = 2.0 * (ix - 1 + (size[0] - 2) * coords[0]) / (NX - 1.0) - 1.0;
+          const double y = 2.0 * (iy - 1 + (size[1] - 2) * coords[1]) / (NY - 1.0) - 1.0;
           // forcing term is a sinusoid
           f[size[0] * iy + ix] = sin(x + y);
+          // printf("%4f\t", f[size[0] * iy + ix]);
         }
+        // printf("\n");
     }
 
-  printf("Begining solver\n");
   const clock_t start = clock();
   // Call solver
   solver(v, f, size[0], size[1], EPS, NMAX, rank, coords, dims, cart);
@@ -119,6 +122,7 @@ main(int argc, char** argv) {
   if (rank == 0) {
     const double dt = ((double)(end - start)) / CLOCKS_PER_SEC * 1000;
     printf("Time elapsed: %f[ms]\n", dt);
+  }
 
     // prints the approximate solution
     // for (int iy = 0; iy < NY; iy++)
@@ -126,16 +130,26 @@ main(int argc, char** argv) {
     //     printf("%d,%d,%e\n", ix, iy, v[iy * NX + ix]);
 
     char *filename = "solution_mpi.csv";
+    int access_mode = MPI_MODE_CREATE | MPI_MODE_WRONLY | MPI_MODE_SEQUENTIAL;
+    MPI_File file;
+    MPI_File_open(MPI_COMM_WORLD, filename, access_mode, MPI_INFO_NULL, &file);
+    char buf[42];
+    snprintf(buf, 42, "x,y,v\n");
+    MPI_File_write(file, buf, strlen(buf), MPI_CHAR, MPI_STATUS_IGNORE);
+    // fprintf(file, "x,y,v\n");
+    for (int iy = 1; iy < size[1] - 1; iy++)
+      for (int ix = 1; ix < size[0] - 1; ix++) {
+        int x_ind = size[0] * coords[0] + ix - 1;
+        int y_ind = size[1] * coords[1] + iy - 1;
+        snprintf(buf, 42, "%d,%d,%lf\n", x_ind, y_ind, v[iy * size[0] + ix]);
+        // printf(buf);
+        // fprintf(file, "%d,%d,%lf\n", x_ind, y_ind, v[iy * NX + ix]);
+        MPI_File_write(file, buf, strlen(buf), MPI_CHAR, MPI_STATUS_IGNORE);
+      }
+    MPI_File_close(&file);
+    MPI_Barrier(cart);
+    if (rank == 0) printf("Output written to %s\n", filename);
 
-    FILE *file = fopen(filename, "w");
-    fprintf(file, "x,y,v\n");
-    for (int iy = 0; iy < NY; iy++)
-      for (int ix = 0; ix < NX; ix++)
-        fprintf(file, "%d,%d,%lf\n", ix, iy, v[iy * NX + ix]);
-    fclose(file);
-
-    printf("Output written to %s\n", filename);
-  }
   // Clean-up
   free(v);
   free(f);
