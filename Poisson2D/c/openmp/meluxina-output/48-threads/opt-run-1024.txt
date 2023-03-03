@@ -1,0 +1,13 @@
+gcc: error: unrecognized command-line option ‘-version’
+gcc: fatal error: no input files
+compilation terminated.
+===Compile Phase===
+rm -f main.out
+gcc -g -Wall -O2 -lm -fopenmp -o main.out *.c
+===Execution Phase===
+Matrix size: 1048576
+n_cores: 48 - n_threads: 48
+Converged after 125405 iterations (nx=1024, ny=1024, e=1.00e-05)
+Time elapsed: 24891.368561[ms]
+Output written to solution.csv
+===END===
