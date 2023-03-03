@@ -76,17 +76,17 @@ solver(const double *v, const double *f, const int nx, const int ny, double *vp)
 //   __syncthreads();
 
 //   // boundary check
-//     if (tx < nx && ty < ny) {
+//     if ((tx < (nx - 1)) && (ty < (ny - 1))) {
 //       // linearize coordinates
 //       const int lin_idx = ty * nx + tx;
 //       // update solution
-//       vp[lin_idx]                                    // v_{i,j}
-//         = -0.25                                      // 1/t_{i,i} --> this is D^-1
-//         * (f[lin_idx]                                // f_{i,j}
-//            - (vs[threadIdx.y + 0][threadIdx.x + 1]   // v[lin_idx + 1] v_{i+1,j} -->
-//               + vs[threadIdx.y + 2][threadIdx.x + 1] // v[lin_idx - 1] v_{i-1,j} --> this
-//               isR*v
-//               + vs[threadIdx.y + 1][threadIdx.x + 2] // v[lin_idx + nx] v_{i,j+1} -->
+//       vp[lin_idx]                                     // v_{i,j}
+//         = -0.25                                       // 1/t_{i,i} --> this is D^-1
+//         * (f[lin_idx]                                 // f_{i,j}
+//            - (vs[threadIdx.y + 0][threadIdx.x + 1]    // v[lin_idx + 1] v_{i+1,j} -->
+//               + vs[threadIdx.y + 2][threadIdx.x + 1]  // v[lin_idx - 1] v_{i-1,j} -->
+//               thisisR*v
+//               + vs[threadIdx.y + 1][threadIdx.x + 2]  // v[lin_idx + nx] v_{i,j+1} -->
 //               + vs[threadIdx.y + 1][threadIdx.x + 0]) // v[lin_idx - nx])); v_{i,j-1} -->
 //           );
 //   }

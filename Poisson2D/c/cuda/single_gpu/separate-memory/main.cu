@@ -31,10 +31,10 @@
 #include <stdlib.h>
 
 #ifndef NX
-#  define NX 128
+#  define NX 512
 #endif
 #ifndef NY
-#  define NY 128
+#  define NY 512
 #endif
 #ifndef BLOCK_SIZE
 #  define BLOCK_SIZE 16
@@ -69,7 +69,8 @@ main() {
   double *h_w, *d_w;
   double *h_e, *d_e;
 
-  dim3 jacobiGrid((NX + BLOCK_SIZE - 1) / BLOCK_SIZE, (NY + BLOCK_SIZE - 1) / BLOCK_SIZE);
+  dim3 jacobiGrid(((NX - 2) + BLOCK_SIZE - 1) / BLOCK_SIZE,
+                  ((NY - 2) + BLOCK_SIZE - 1) / BLOCK_SIZE);
   dim3 jacobiBlock(BLOCK_SIZE, BLOCK_SIZE);
 
   int    sol_size       = NX * NY;
@@ -124,8 +125,6 @@ main() {
   cudaMemcpy(d_f, h_f, sol_size_bytes, cudaMemcpyHostToDevice);
   cudaMemcpy(d_w, h_w, diff_size_bytes, cudaMemcpyHostToDevice);
   cudaMemcpy(d_e, h_e, diff_size_bytes, cudaMemcpyHostToDevice);
-
-  printf("DONE\n");
 
   cudaEvent_t start, end;
   cudaEventCreate(&start);

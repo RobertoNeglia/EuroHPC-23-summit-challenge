@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --ntasks-per-node=1
+#SBATCH --ntasks=4
+#SBATCH --ntasks-per-node=4
 #SBATCH --gpus-per-task=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:05:00
@@ -10,16 +10,18 @@
 #SBATCH --qos=default
 
 
-#Load NVHPC module
+#Load AOCC module
 module load NVHPC
-#module load OpenMPI 
+nvcc --version
+
 #test purpose openmpi load 
+#module load OpenMPI 
 
 echo "===Compile Phase==="
 #Clean before compile
 make clean
 
-#Compile C program with nvcc (in parallel)
+#Compile C program with AOCC (in parallel)
 make
 
 echo "===Execution Phase==="

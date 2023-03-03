@@ -7,6 +7,7 @@ CFLAGS  = -g
  
 # The build target 
 TARGET = main
+LIBS =
 
 $(TARGET): $(TARGET).cu
 	$(CC) $(CFLAGS) $(LIBS) -o $(TARGET).out *.cu

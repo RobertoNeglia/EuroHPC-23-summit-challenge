@@ -6,7 +6,8 @@ CC = nvcc
 CFLAGS  = -g
  
 # The build target 
-TARGET = gpu_info
+TARGET = main
+LIBS =
 
 $(TARGET): $(TARGET).cu
 	$(CC) $(CFLAGS) $(LIBS) -o $(TARGET).out *.cu
