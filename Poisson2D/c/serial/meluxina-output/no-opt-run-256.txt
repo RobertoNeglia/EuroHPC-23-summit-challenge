@@ -1,0 +1,9 @@
+===Compile Phase===
+rm -f main.out
+gcc -g -Wall -lm -o main.out *.c
+===Execution Phase===
+Matrix size: 65536
+Converged after 23848 iterations (nx=256, ny=256, e=1.00e-05)
+Time elapsed: 16068.628000[ms]
+Output written to solution.csv
+===END===

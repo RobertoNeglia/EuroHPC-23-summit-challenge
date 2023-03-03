@@ -1,0 +1,10 @@
+===Compile Phase===
+rm -f main.out
+gcc -g -Wall -lm -fopenmp -o main.out *.c
+===Execution Phase===
+Matrix size: 65536
+n_cores: 64 - n_threads: 64
+Converged after 23848 iterations (nx=256, ny=256, e=1.00e-05)
+Time elapsed: 2843.149502[ms]
+Output written to solution.csv
+===END===

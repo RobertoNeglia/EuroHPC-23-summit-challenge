@@ -1,8 +1,7 @@
 #!/bin/bash -l
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=64
+#SBATCH --cpus-per-task=1
 #SBATCH --partition=cpu
 #SBATCH --account=p200117
 #SBATCH --qos=default
@@ -14,8 +13,6 @@ module load GCC
 echo "===Compile Phase==="
 #Clean before compile
 make clean
-
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 #Compile C program with gcc
 make

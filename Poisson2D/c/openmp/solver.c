@@ -36,7 +36,7 @@
 
 int
 solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
-  int n_cores = omp_get_num_procs();
+  int n_cores = omp_get_max_threads();
   int n_threads;
 
   int     n = 0;
