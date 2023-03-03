@@ -2,7 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --gpus-per-task=1
+#SBATCH --gpus-per-task=2
 #SBATCH --cpus-per-task=1
 #SBATCH --time=00:05:00
 #SBATCH --partition=gpu
@@ -24,6 +24,6 @@ make
 
 echo "===Execution Phase==="
 #Execute the program
-./main.out
+./gpu_info.out
 
 echo "===END==="

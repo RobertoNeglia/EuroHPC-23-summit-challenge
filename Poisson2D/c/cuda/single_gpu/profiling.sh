@@ -12,8 +12,8 @@
 
 #Load NVHPC module
 module load NVHPC
-#module load OpenMPI 
-#test purpose openmpi load 
+#module load OpenMPI
+#test purpose openmpi load
 
 echo "===Compile Phase==="
 #Clean before compile
@@ -24,6 +24,6 @@ make
 
 echo "===Execution Phase==="
 #Execute the program
-./main.out
+nsys profile --stats=true -o output-report ./main.out
 
 echo "===END==="

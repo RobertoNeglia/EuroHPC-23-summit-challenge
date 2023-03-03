@@ -1,0 +1,46 @@
+===Compile Phase===
+rm -f gpu_info.out
+nvcc -g  -o gpu_info.out *.cu
+===Execution Phase===
+Devices found: 4
+Device number: 0
+	Device name: NVIDIA A100-SXM4-40GB
+	Max block per multiprocessor: 32
+	Max threads per multiprocessor: 2048
+	Max threads per blocks: 1024
+	Number of streaming multiprocessors: 108
+	Number of bytes of shared memory per block: 49152
+	Number of bytes of shared memory per multiprocessor: 167936
+	Memory clock rate: 1215000
+	Memory bus width: 5120
+Device number: 1
+	Device name: NVIDIA A100-SXM4-40GB
+	Max block per multiprocessor: 32
+	Max threads per multiprocessor: 2048
+	Max threads per blocks: 1024
+	Number of streaming multiprocessors: 108
+	Number of bytes of shared memory per block: 49152
+	Number of bytes of shared memory per multiprocessor: 167936
+	Memory clock rate: 1215000
+	Memory bus width: 5120
+Device number: 2
+	Device name: NVIDIA A100-SXM4-40GB
+	Max block per multiprocessor: 32
+	Max threads per multiprocessor: 2048
+	Max threads per blocks: 1024
+	Number of streaming multiprocessors: 108
+	Number of bytes of shared memory per block: 49152
+	Number of bytes of shared memory per multiprocessor: 167936
+	Memory clock rate: 1215000
+	Memory bus width: 5120
+Device number: 3
+	Device name: NVIDIA A100-SXM4-40GB
+	Max block per multiprocessor: 32
+	Max threads per multiprocessor: 2048
+	Max threads per blocks: 1024
+	Number of streaming multiprocessors: 108
+	Number of bytes of shared memory per block: 49152
+	Number of bytes of shared memory per multiprocessor: 167936
+	Memory clock rate: 1215000
+	Memory bus width: 5120
+===END===

@@ -1,0 +1,11 @@
+===Compile Phase===
+rm -f main.out
+nvcc -g  -o main.out *.cu
+===Execution Phase===
+Matrix sol_size: 65536
+NX=256;NY=256;
+DONE
+Converged after 23900 iterations (nx=256, ny=256, e=9.92e-06)
+Time elapsed: 221.286652[ms]
+Output written to solution.csv
+===END===
