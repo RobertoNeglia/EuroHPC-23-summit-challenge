@@ -34,7 +34,7 @@
 #include <stdlib.h>
 #include <mpi.h>
 
-int solver(double *v, double *f, int nx, int ny, double eps, int nmax, int rank, int* coords, int* dims, MPI_Comm cart) {
+int solver(double *v, double *f, int NX, int NY, int nx, int ny, double eps, int nmax, int rank, int* coords, int* offset, int* dims, MPI_Comm cart) {
   int     n = 0;
   double  e = 2. * eps;
   double *v_copy, *v_old, *v_new, *swap;
@@ -49,8 +49,6 @@ int solver(double *v, double *f, int nx, int ny, double eps, int nmax, int rank,
   MPI_Cart_shift(cart, 0, 1, &up, &down);
   MPI_Cart_shift(cart, 1, 1, &left, &right);
 
-
-  // Check if the node is on a boundary of the matrix
   int x_start_ind = 1;
   int y_start_ind = 1;
   int x_end_ind   = nx - 1;
@@ -64,31 +62,20 @@ int solver(double *v, double *f, int nx, int ny, double eps, int nmax, int rank,
   MPI_Type_vector(ny, 1, nx, MPI_DOUBLE, &y_type);
   MPI_Type_commit(&y_type);
 
-  if (coords[0] == 0)           x_start_ind += 1;
-  if (coords[1] == 0)           y_start_ind += 1;
-  if (coords[0] == dims[0] - 1) x_end_ind -= 1;
-  if (coords[1] == dims[1] - 1) y_end_ind -= 1;
 
-  // int x_count   = x_end_ind - x_start_ind;
-  // int row_count      = y_end_ind - y_start_ind;
   int up_send_ind    = x_start_ind;
-  int down_send_ind  = x_end_ind - 1;
   int up_recv_ind    = x_start_ind - 1;
+  int down_send_ind  = x_end_ind - 1;
   int down_recv_ind  = x_end_ind;
-  int left_send_ind  = nx * (y_end_ind - 1);
-  int right_send_ind = nx * y_start_ind;
-  int left_recv_ind  = nx * y_end_ind;
-  int right_recv_ind = nx * (y_start_ind - 1);
-
-
-  // printf("%d %d %d %d\n", coords[0], coords[1], dims[0], dims[1]);
+  int left_send_ind  = nx * y_start_ind;
+  int left_recv_ind  = nx * (y_start_ind - 1);
+  int right_send_ind = nx * (y_end_ind - 1);
+  int right_recv_ind = nx * y_end_ind;
 
   // int odd = (coords[0] + coords[1]) % 2;
 
-  // printf("%d %d, %d, %d, %d\n", rank, up, down, left, right);
   // loop until convergence
   while ((e > eps) && (n < nmax)) { // step k
-    // printf("loop iteration %d\n", n);
     // max difference between two consecutive iterations
     e = 0.0;
 
@@ -115,148 +102,6 @@ int solver(double *v, double *f, int nx, int ny, double eps, int nmax, int rank,
       }
     }
 
-    /* double arr_up[ny], arr_down[ny], arr_left[nx], arr_right[nx];
-
-    int up_index = 0;
-    int down_index = nx - 1;
-    if (coords[0] == 0) up_index += 1;
-    if (coords[0] == dims[0] - 1) down_index -= 1;
-    for (int i=0; i < ny; i++) {
-      arr_up[i]   = v_new[nx * i + up_index];
-      arr_down[i] = v_new[nx * i + down_index];
-    }
-
-    int left_index = 0;
-    int right_index = nx * (ny - 1); 
-    if (coords[1] == 0) left_index += nx;
-    if (coords[1] == dims[1] - 1) right_index -= nx;
-    for (int i = 0; i < nx; i++) {
-      arr_left[i]  = v_new[left_index + i];
-      arr_right[i] = v_new[right_index + i];
-    }
-
-    // printf("before %d %d %d %d\n", up, down, left, right);
-    MPI_Sendrecv_replace(arr_up,    ny, MPI_INT, up,    0, down,  0, cart, MPI_STATUS_IGNORE);
-    MPI_Sendrecv_replace(arr_down,  ny, MPI_INT, down,  0, up,    0, cart, MPI_STATUS_IGNORE);
-    MPI_Sendrecv_replace(arr_left,  nx, MPI_INT, left,  0, right, 0, cart, MPI_STATUS_IGNORE);
-    MPI_Sendrecv_replace(arr_right, nx, MPI_INT, right, 0, left,  0, cart, MPI_STATUS_IGNORE);
-
-    if (coords[0] != 0) {
-      for (int i = 0; i < ny; i++) {
-        if (i == 0) {
-          if (coords[1] == 0) continue;;
-          v_new[nx * i] = -0.25 * (f[nx * i] - (v_old[nx * i + 1] + v_old[nx * (i + 1)] 
-                          + arr_left[i] + arr_up[i]));
-        }
-        else if (i == ny - 1) {
-          if (coords[1] == dims[1] - 1) break;
-          v_new[nx * i] = -0.25 * (f[nx * i] - (v_old[nx * i + 1] + arr_right[ny - 1] 
-                          + v_old[nx * (i - 1)] + arr_up[i]));
-        }
-        else v_new[nx * i] = -0.25 * (f[nx * i] - (v_old[nx * i + 1] + v_old[nx * (i + 1)] 
-                             + v_old[nx * (i - 1)] + arr_up[i]));
-        // compute difference between iteration k and k-1
-        double d;
-        d = fabs(v_new[nx * i] - v_old[nx * i]);
-        e = (d > e) ? d : e;
-        w += fabs(v_new[nx * i]);
-      }
-    }
-    else {
-      // printf("up\t");
-      for (int i = 0; i < ny; i++) {
-        v_new[nx * i] = arr_up[i];
-        w += fabs(arr_up[i]);
-      }
-    }
-    if (coords[0] != dims[0] - 1) {
-      for (int i = 1; i < ny - 1; i++) {
-        if (i == 0) {
-          if (coords[1] == 0) continue;
-          v_new[nx * i + nx - 1] = -0.25 * (f[nx * i + nx - 1] - (v_old[nx * i + nx - 2] 
-                                    + v_old[nx * (i + 1) + nx + 1] + arr_left[i] + arr_down[i]));
-        }
-        else if (i == ny - 1) {
-          if (coords[1] == dims[1] - 1) break;
-          v_new[nx * i + nx - 1] = -0.25 * (f[nx * i + nx - 1] - (v_old[nx * i + nx - 2] 
-                                   + v_old[nx * (i - 1) + nx - 1] + arr_right[i] + arr_down[i]));
-        }
-        else v_new[nx * i + nx - 1] = -0.25 * (f[nx * i + nx - 1] - (v_old[nx * i + nx - 2] 
-                                      + v_old[nx * (i - 1) + nx - 1] + v_old[nx * (i - 1) + nx + 1] + arr_down[i]));
-        
-        // compute difference between iteration k and k-1
-        double d;
-        d = fabs(v_new[nx * i + nx - 1] - v_old[nx * i + nx - 1]);
-        e = (d > e) ? d : e;
-        w += fabs(v_new[nx * i + nx - 1]);
-      }
-    }
-    else {
-      // printf("down\t");
-      for (int i = 0; i < ny; i++) {
-        v_new[nx * i + nx - 1] = arr_down[i];
-        w += fabs(arr_down[i]);
-      }
-    }
-
-    if (coords[1] != 0) {
-      for (int i = 1; i < nx - 1; i++) {
-        if (i == 0) {
-          if (coords[0] == 0) continue;
-          v_new[i] = -0.25 * (f[i] - (v_old[i + 1] + arr_up[i] + v_old[nx + i] + arr_left[i]));
-        }
-        else if (i == nx - 1) {
-          if (coords[0] == dims[0] - 1) break;
-          v_new[i] = -0.25 * (f[i] - (arr_down[i] + v_old[i - 1] + v_old[nx + i] + arr_left[i]));
-        }
-        else v_new[i] = -0.25 * (f[i] - (v_old[i + 1] + v_old[i - 1] + v_old[nx + i] + arr_left[i]));
-
-        // compute difference between iteration k and k-1
-        double d;
-        d = fabs(v_new[i] - v_old[i]);
-        e = (d > e) ? d : e;
-        w += fabs(v_new[i]);
-      }
-    }
-    else {
-      // printf("left\t");
-      for (int i = 0; i < nx; i++) {
-        v_new[i] = arr_left[i];
-        w += fabs(arr_left[i]);
-      }
-    }
-
-    if (coords[1] != dims[1] - 1) {
-      for (int i = 1; i < nx - 1; i++) {
-        if (i == 0) {
-          if (coords[0] == 0) continue;
-            v_new[nx * (ny - 1) + i] = -0.25 * (f[nx * (ny - 1) + i] - (v_old[nx * (ny - 1) + i + 1] 
-                                       + arr_up[i] + v_old[nx * (ny - 2) + i] + arr_left[i]));
-
-        }
-        else if (i == nx - 1) {
-          if (coords[0] == dims[0] - 1) break;
-            v_new[nx * (ny - 1) + i] = -0.25 * (f[nx * (ny - 1) + i] - (arr_down[i] 
-                                       + v_old[nx * (ny - 1) + i - 1] + v_old[nx * (ny - 2) + i] + arr_left[i]));
-
-        }
-        else v_new[nx * (ny - 1) + i] = -0.25 * (f[nx * (ny - 1) + i] - (v_old[nx * (ny - 1) + i + 1] 
-                                   + v_old[nx * (ny - 1) + i - 1] + v_old[nx * (ny - 2) + i] + arr_left[i]));
-
-        // compute difference between iteration k and k-1
-        double d;
-        d = fabs(v_new[nx * (ny - 1) + i] - v_old[nx * (ny - 1) + i]);
-        e = (d > e) ? d : e;
-        w += fabs(v_new[nx * (ny - 1) + i]);
-      }
-    }
-    else {
-      // printf("right\n");
-      for (int i = 0; i < nx; i++) {
-        v_new[nx * (ny - 1) + i] = arr_right[i];
-        w += fabs(arr_right[i]);
-      }
-    }*/
 
     // swap pointers
     swap  = v_new;
@@ -276,28 +121,32 @@ int solver(double *v, double *f, int nx, int ny, double eps, int nmax, int rank,
 
     MPI_Sendrecv(&v_old[left_send_ind], 1, x_type, left, 1, &v_old[right_recv_ind], 1, x_type, right, 1, cart, MPI_STATUS_IGNORE);
     MPI_Sendrecv(&v_old[right_send_ind], 1, x_type, right, 1, &v_old[left_recv_ind], 1, x_type, left, 1, cart, MPI_STATUS_IGNORE);
-    // Update v and compute error as well as error weight factor
-    for (int ix = x_start_ind; ix < x_end_ind; ix++) {
-      // y = 0
-      // v_old[nx * (y_start_ind - 1) + ix] = v_old[nx * (y_end_ind - 1) + ix];
-      // y = NY
-      // v_old[nx * y_end_ind + ix] = v_old[nx * y_start_ind + ix];
-      w += fabs(v_old[nx * (y_start_ind - 1) + ix]) + fabs(v_old[nx * y_end_ind + ix]);
-    }
-
 
     MPI_Sendrecv(&v_old[up_send_ind], 1, y_type, up, 1, &v_old[down_recv_ind], 1, y_type, down, 1, cart, MPI_STATUS_IGNORE);
     MPI_Sendrecv(&v_old[down_send_ind], 1, y_type, down, 1, &v_old[up_recv_ind], 1, y_type, up, 1, cart, MPI_STATUS_IGNORE);
-    for (int iy = y_start_ind; iy < y_end_ind; iy++) {
-      // x = 0
-      // v_old[nx * iy + x_start_ind - 1] = v_old[nx * iy + x_end_ind - 1];
-      // x = NX
-      // v_old[nx * iy + x_end_ind] = v_old[nx * iy + x_start_ind];
-      w += fabs(v_old[nx * iy + x_start_ind - 1]) + fabs(v_old[nx * iy + x_end_ind]);
-    }
-    // // update weight by domain size
-    w /= (nx - 2) * (ny - 2);
+
+    if (coords[0] == dims[0] - 1)
+      for (int ix = x_start_ind; ix < x_end_ind; ix++)
+        w += fabs(v_old[nx * (y_start_ind - 1) + ix]);
+        
+    if (coords[1] == dims[1] - 1)
+      for (int ix = x_start_ind; ix < x_end_ind; ix++)
+        w += fabs(v_old[nx * y_end_ind + ix]);
+
+    if (coords[0] == 0)
+      for (int iy = y_start_ind; iy < y_end_ind; iy++) 
+         w += fabs(v_old[nx * iy + x_start_ind - 1]);
+
+    if (coords[1] == 0)
+      for (int iy = y_start_ind; iy < y_end_ind; iy++)
+        w += fabs(v_old[nx * iy + x_end_ind]);
+
+
+  
+    // update weight by domain size
+
     MPI_Allreduce(MPI_IN_PLACE, &w, 1, MPI_DOUBLE, MPI_SUM, cart);
+    w /= NX * NY;
     // update difference of consecutive iterations
     e /= w;
     MPI_Allreduce(MPI_IN_PLACE, &e, 1, MPI_DOUBLE, MPI_MAX, cart);
