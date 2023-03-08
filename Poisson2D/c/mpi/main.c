@@ -72,6 +72,8 @@ int main(int argc, char** argv) {
 	int p = 0;
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
 
+  // We divide the processors in a cart in 2 dimensions
+
   // optimal_solution(dims);
   int dims[2] = {0, 0};
   MPI_Dims_create(p, 2, dims);

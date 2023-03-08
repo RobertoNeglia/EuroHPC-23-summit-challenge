@@ -125,6 +125,10 @@ int solver(double *v, double *f, int NX, int NY, int nx, int ny, double eps, int
     MPI_Sendrecv(&v_old[up_send_ind], 1, y_type, up, 1, &v_old[down_recv_ind], 1, y_type, down, 1, cart, MPI_STATUS_IGNORE);
     MPI_Sendrecv(&v_old[down_send_ind], 1, y_type, down, 1, &v_old[up_recv_ind], 1, y_type, up, 1, cart, MPI_STATUS_IGNORE);
 
+
+    // update weight by domain size 
+    // This part can take a lot of time if the matrix is bigger than the L1 cache 
+    // and it is not essential, we just have to take a smaller error
     if (coords[0] == dims[0] - 1)
       for (int ix = x_start_ind; ix < x_end_ind; ix++)
         w += fabs(v_old[nx * (y_start_ind - 1) + ix]);
@@ -142,11 +146,9 @@ int solver(double *v, double *f, int NX, int NY, int nx, int ny, double eps, int
         w += fabs(v_old[nx * iy + x_end_ind]);
 
 
-  
-    // update weight by domain size
 
-    MPI_Allreduce(MPI_IN_PLACE, &w, 1, MPI_DOUBLE, MPI_SUM, cart);
     w /= NX * NY;
+    MPI_Allreduce(MPI_IN_PLACE, &w, 1, MPI_DOUBLE, MPI_SUM, cart);
     // update difference of consecutive iterations
     e /= w;
     MPI_Allreduce(MPI_IN_PLACE, &e, 1, MPI_DOUBLE, MPI_MAX, cart);
