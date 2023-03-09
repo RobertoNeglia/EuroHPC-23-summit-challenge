@@ -22,6 +22,6 @@ make
 
 echo "===Execution Phase==="
 #Execute the program
-srun ./main.out
+mpirun -np 4 ./main
 
 echo "===END==="

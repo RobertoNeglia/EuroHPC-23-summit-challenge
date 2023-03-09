@@ -11,7 +11,7 @@ TARGET = main
 LIBS = -lm -fopenmp
 
 $(TARGET): $(TARGET).c
-	$(CC) $(CFLAGS) *.c $(LIBS) -o $(TARGET).out
+	$(CC) $(CFLAGS) *.c $(LIBS) -o $(TARGET)
  
 clean:
-	$(RM) $(TARGET).out
+	$(RM) $(TARGET)
