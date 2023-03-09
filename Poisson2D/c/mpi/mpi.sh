@@ -1,6 +1,6 @@
 #!/bin/bash -l
-#SBATCH -N 1
-#SBATCH --ntasks=5
+#SBATCH -N 9
+#SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH -p cpu
 #SBATCH -q test

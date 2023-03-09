@@ -35,47 +35,57 @@
 #include <string.h>
 
 #ifndef NX
-#  define NX 128
+#  define NX 255
 #endif
 #ifndef NY
-#  define NY 128
+#  define NY 129
 #endif
-#define NMAX 100000
+#define NMAX 200000
 #define EPS 1e-8
+
+#ifndef max
+#  define max(a,b) (((a)>(b))?(a):(b))
+#endif
 
 int
 solver(double *, double *, int, int, int, int, double, int, int, int*, int*, int*, MPI_Comm);
 
-// void optimal_solution(int p, int* ptr_x, int* ptr_y, int* x_rank, int* y_rank) {
-//   if (NX >= p * NY) {
-//     *ptr_x = ceil(NX /p);
-//     *ptr_y = NY;
-//     return;
-//   }
-//   if (NY >= p * NX) {
-//     *ptr_x = NX;
-//     *ptr_y = ceil(NY / p);
-//     return;
-//   }
-//   *ptr_x = NX / ceil(p/2);
-//   *ptr_y = NY / (p/2);
-//   return;
-// }
+void optimal_dimension(int p, int* dims, int nx, int ny) {
+  int min_length = nx;
+  int y, length;
+  for (int x = 1; x <= p; x++) {
+    if (p % x == 0) {
+      y = p / x;
+      // We compute the greatest communication for each dimension, 
+      // taking in account the possibility that the matrix cannot be equally shared
+      int x_length = (nx - 2)/x + nx - 2 - (nx - 2)/x * x;
+      int y_length = (ny - 2)/y + ny - 2 - (ny - 2)/y * y;
+      length = max(x_length, y_length);
+      if (length <= min_length) {
+        min_length = length;
+        dims[0] = x;
+        dims[1] = y;
+      }
+    }
+  }
+  return;
+}
 
 int main(int argc, char** argv) {
   double *v;
   double *f;
 
-  //Initialisation of MPI
+  // Initialisation of MPI
   MPI_Init(&argc, &argv);
 	int rank = 0;
 	int p = 0;
 	MPI_Comm_size(MPI_COMM_WORLD, &p);
 
-  // We divide the processors in a cart in 2 dimensions
-
-  // optimal_solution(dims);
-  int dims[2] = {0, 0};
+  // We divide the processors in a cart in 2 dimensions  
+  int dims[2];
+  // This function creates a cart such that each processor
+  // has a matrix as squared as possible to avoid too much communication cost.
+  optimal_dimension(p, dims, NX, NY);
   MPI_Dims_create(p, 2, dims);
 
   int periods[2] = {true, true};
@@ -90,14 +100,21 @@ int main(int argc, char** argv) {
   // Allocate memory
   // approximate solution vector
   //We add a row/column at eache side to handle the boundary
-  int size[] = {ceil((NX - 2)/dims[0]) + 2, ceil((NY - 2)/dims[1]) + 2};
+  int size[] = {((NX - 2)/dims[0]) + 2, ((NY - 2)/dims[1]) + 2};
+
+  int offset[] = {(size[0] - 2) * coords[0], (size[1] - 2) * coords[1]};
+
+  // If the matrix v cannot be equally shared, we adjust it at the end of the cart
+  if (dims[0] - 1 == coords[0]) size[0] += (NX - 2 - (size[0] - 2) * dims[0]);
+
+  if (dims[1] - 1 == coords[1]) size[1] += (NY - 2 - (size[1] - 2) * dims[1]);
+
   v = (double *)malloc(size[0] * size[1] * sizeof(double));
   // forcing term
   f = (double *)malloc(size[0] * size[1] * sizeof(double));
 
-  int offset[] = {(size[0] - 2) * coords[0], (size[1] - 2) * coords[1]};
 
-  printf("Matrix size: %d\n", NX * NY);
+  if (rank == 0) printf("Matrix size: %d, with (%d,%d) processors\n", NX * NY, dims[0], dims[1]);
 
   // Initialize input
     for (int iy = 0; iy < size[1]; iy++) {
