@@ -32,10 +32,10 @@
 #include <time.h>
 
 #ifndef NX
-#  define NX 128
+#  define NX 256
 #endif
 #ifndef NY
-#  define NY 128
+#  define NY 256
 #endif
 #define NMAX 200000
 #define EPS 1e-5
@@ -55,14 +55,15 @@ main() {
   printf("Matrix size: %d\n", NX * NY);
 
   // Initialise input
-  for (int iy = 0; iy < NY; iy++)
-      for (int ix = 0; ix < NX; ix++) {
-        v[NX * iy + ix] = 0.0;
+    for (int ix = 0; ix < NX; ix++) {
+        for (int iy = 0; iy < NY; iy++) {
+          v[NX * iy + ix] = 0.0;
 
-        const double x  = 2.0 * ix / (NX - 1.0) - 1.0;
-        const double y  = 2.0 * iy / (NY - 1.0) - 1.0;
-        f[NX * iy + ix] = sin(x + y);
-      }
+          const double x  = 2.0 * ix / (NX - 1.0) - 1.0;
+          const double y  = 2.0 * iy / (NY - 1.0) - 1.0;
+          f[NX * iy + ix] = sin(x + y);
+        }
+    }
 
   const clock_t start = clock();
   // Call solver
