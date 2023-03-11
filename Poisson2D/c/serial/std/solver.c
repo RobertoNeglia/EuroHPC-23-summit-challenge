@@ -33,45 +33,74 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+double
+solve(double *v, double *vp, double *f, int nx, int ny, double *e) {
+  double w = 0.0;
+  // loop over each element of the discretized domain
+    for (int iy = 1; iy < (ny - 1); iy++) {
+        for (int ix = 1; ix < (nx - 1); ix++) {
+          double d;
+
+          int lin_idx = iy * nx + ix;
+          // compute v^{k+1}
+          vp[lin_idx]                  // v_{i,j}
+            = -0.25                    // 1/t_{i,i} --> this is D^-1
+            * (f[lin_idx]              // f_{i,j}
+               - (v[lin_idx + 1]       // v_{i+1,j} -->
+                  + v[lin_idx - 1]     // v_{i-1,j} --> this is R*v
+                  + v[lin_idx + nx]    // v_{i,j+1} -->
+                  + v[lin_idx - nx])); // v_{i,j-1} -->
+          d  = fabs(vp[lin_idx] - v[lin_idx]);
+          *e = (d > *e) ? d : *e;
+          w += fabs(v[lin_idx]);
+        }
+    }
+
+  return w;
+}
+
+double
+apply_boundary(double *v, int nx, int ny) {
+  double w = 0.0;
+  // compute weight on boundaries & apply boundary conditions
+    for (int ix = 1; ix < (nx - 1); ix++) {
+      // y = 0
+      v[nx * 0 + ix] = v[nx * (ny - 2) + ix];
+      // y = NY
+      v[nx * (ny - 1) + ix] = v[nx * 1 + ix];
+      w += fabs(v[nx * 0 + ix]) + fabs(v[nx * (ny - 1) + ix]);
+    }
+
+    for (int iy = 1; iy < (ny - 1); iy++) {
+      // x = 0
+      v[nx * iy + 0] = v[nx * iy + (nx - 2)];
+      // x = NX
+      v[nx * iy + (nx - 1)] = v[nx * iy + 1];
+      w += fabs(v[nx * iy + 0]) + fabs(v[nx * iy + (nx - 1)]);
+    }
+
+  return w;
+}
+
 int
 solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
   int     n = 0;
   double  e = 2. * eps;
-  double *v_copy, *v_old, *v_new, *swap;
+  double *vp, *v_old, *v_new, *swap;
 
-  // temp approximate solution vector
-  v_copy = (double *)malloc(nx * ny * sizeof(double));
+  // supporting approximate solution vector
+  vp = (double *)malloc(nx * ny * sizeof(double));
 
   v_old = &v[0]; // old
-  v_new = &v_copy[0];
+  v_new = &vp[0];
 
     // loop until convergence
     while ((e > eps) && (n < nmax)) { // step k
       // max difference between two consecutive iterations
       e = 0.0;
 
-      double w = 0.0;
+      double w = solve(v_old, v_new, f, nx, ny, &e);
 
-      // loop over each element of the discretized domain
-        for (int iy = 1; iy < (ny - 1); iy++) {
-            for (int ix = 1; ix < (nx - 1); ix++) {
-              double d;
-
-              // compute v^{k+1}
-              v_new[iy * nx + ix]                    // v_{i,j}
-                = -0.25                              // 1/t_{i,i} --> this is D^-1
-                * (f[iy * nx + ix]                   // f_{i,j}
-                   - (v_old[nx * iy + ix + 1]        // v_{i+1,j} -->
-                      + v_old[nx * iy + ix - 1]      // v_{i-1,j} --> this is R*v
-                      + v_old[nx * (iy + 1) + ix]    // v_{i,j+1} -->
-                      + v_old[nx * (iy - 1) + ix])); // v_{i,j-1} -->
-
-              // compute difference between iteration k and k-1
-              d = fabs(v_new[nx * iy + ix] - v_old[nx * iy + ix]);
-              e = (d > e) ? d : e;
-              w += fabs(v_new[nx * iy + ix]);
-            }
-        }
       // swap pointers
       swap  = v_new;
       v_new = v_old;
@@ -79,44 +108,25 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
       // now inside v_old there is the updated solution
 
       // Update v and compute error as well as error weight factor
-
-        // compute weight on boundaries & apply boundary conditions
-        for (int ix = 1; ix < (nx - 1); ix++) {
-          // y = 0
-          v_old[nx * 0 + ix] = v_old[nx * (ny - 2) + ix];
-          // y = NY
-          v_old[nx * (ny - 1) + ix] = v_old[nx * 1 + ix];
-          w += fabs(v_old[nx * 0 + ix]) + fabs(v_old[nx * (ny - 1) + ix]);
-        }
-
-        for (int iy = 1; iy < (ny - 1); iy++) {
-          // x = 0
-          v_old[nx * iy + 0] = v_old[nx * iy + (nx - 2)];
-          // x = NX
-          v_old[nx * iy + (nx - 1)] = v_old[nx * iy + 1];
-          w += fabs(v_old[nx * iy + 0]) + fabs(v_old[nx * iy + (nx - 1)]);
-        }
+      w += apply_boundary(v_old, nx, ny);
 
       // update weight by domain size
       w /= (nx * ny);
       // update difference of consecutive iterations
       e /= w;
 
-      // if ((n % 10) == 0)
-      //     printf("%5d, %0.4e\n", n, e);
-
       n++;
     }
 
     if (n % 2) {
-      v      = v_new;
-      v_copy = v_old;
+      v  = v_new;
+      vp = v_old;
     } else {
-      v      = v_old;
-      v_copy = v_new;
+      v  = v_old;
+      vp = v_new;
     }
 
-  free(v_copy);
+  free(vp);
 
   if (e < eps)
     printf("Converged after %d iterations (nx=%d, ny=%d, e=%.2e)\n", n, nx, ny, e);
