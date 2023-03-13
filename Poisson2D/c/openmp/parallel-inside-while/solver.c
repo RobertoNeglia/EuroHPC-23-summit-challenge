@@ -36,7 +36,7 @@
 
 int
 solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
-  int n_cores = omp_get_max_threads();
+  int n_cores = 64;
   int n_threads;
 
   const int size = nx * ny;
@@ -57,12 +57,14 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
 // max difference between two consecutive iterations
 #pragma omp parallel num_threads(n_cores)
       {
-#pragma omp single
+#pragma omp master
         {
           n_threads = omp_get_num_threads();
           e         = 0.0;
           w         = 0.0;
         }
+
+#pragma omp barrier
 
 // loop over each element of the discretized domain
 #pragma omp for reduction(+ : w) reduction(max : e)
@@ -86,37 +88,32 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
               }
           }
 
-// Update v and compute error as well as error weight factor
-#pragma omp master
-        {
-          swap  = v_new;
-          v_new = v_old;
-          v_old = swap;
-        }
-#pragma omp barrier
-
 // compute weight on boundaries & apply boundary conditions
 #pragma omp for reduction(+ : w)
           for (int ix = 1; ix < (nx - 1); ix++) {
             // y = 0
-            v_old[nx * 0 + ix] = v_old[nx * (ny - 2) + ix];
+            v_new[nx * 0 + ix] = v_new[nx * (ny - 2) + ix];
             // y = NY
-            v_old[nx * (ny - 1) + ix] = v_old[nx * 1 + ix];
-            w += fabs(v_old[nx * 0 + ix]) + fabs(v_old[nx * (ny - 1) + ix]);
+            v_new[nx * (ny - 1) + ix] = v_new[nx * 1 + ix];
+            w += fabs(v_new[nx * 0 + ix]) + fabs(v_new[nx * (ny - 1) + ix]);
           }
 
 #pragma omp for reduction(+ : w)
           for (int iy = 1; iy < (ny - 1); iy++) {
             // x = 0
-            v_old[nx * iy + 0] = v_old[nx * iy + (nx - 2)];
+            v_new[nx * iy + 0] = v_new[nx * iy + (nx - 2)];
             // x = NX
-            v_old[nx * iy + (nx - 1)] = v_old[nx * iy + 1];
-            w += fabs(v_old[nx * iy + 0]) + fabs(v_old[nx * iy + (nx - 1)]);
+            v_new[nx * iy + (nx - 1)] = v_new[nx * iy + 1];
+            w += fabs(v_new[nx * iy + 0]) + fabs(v_new[nx * iy + (nx - 1)]);
           }
 
           // update weight by domain size
 #pragma omp master
         {
+          swap  = v_new;
+          v_new = v_old;
+          v_old = swap;
+
           w /= size;
           // update difference of consecutive iterations
           e /= w;

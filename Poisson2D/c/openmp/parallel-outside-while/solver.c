@@ -36,7 +36,7 @@
 
 int
 solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
-  int n_cores = omp_get_max_threads();
+  int n_cores = 64;
   int n_threads;
 
   const int size = nx * ny;
@@ -55,15 +55,15 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
   // loop until convergence
 #pragma omp parallel num_threads(n_cores)
   {
+    n_threads = omp_get_num_threads();
       while ((e > eps) && (n < nmax)) { // step k
 // max difference between two consecutive iterations
 #pragma omp barrier
 
 #pragma omp master
         {
-          n_threads = omp_get_num_threads();
-          e         = 0.0;
-          w         = 0.0;
+          e = 0.0;
+          w = 0.0;
         }
 
 #pragma omp barrier
@@ -73,32 +73,27 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
           for (int iy = 1; iy < (ny - 1); iy++) {
               for (int ix = 1; ix < (nx - 1); ix++) {
                 double d;
+                int    lin_idx = iy * nx + ix;
 
                 // compute v^{k+1}
-                v_new[iy * nx + ix]                    // v_{i,j}
-                  = -0.25                              // 1/t_{i,i} --> this is D^-1
-                  * (f[iy * nx + ix]                   // f_{i,j}
-                     - (v_old[nx * iy + ix + 1]        // v_{i+1,j} -->
-                        + v_old[nx * iy + ix - 1]      // v_{i-1,j} --> this is R*v
-                        + v_old[nx * (iy + 1) + ix]    // v_{i,j+1} -->
-                        + v_old[nx * (iy - 1) + ix])); // v_{i,j-1} -->
+                v_new[lin_idx]                   // v_{i,j}
+                  = -0.25                        // 1/t_{i,i} --> this is D^-1
+                  * (f[lin_idx]                  // f_{i,j}
+                     - (v_old[lin_idx + 1]       // v_{i+1,j} -->
+                        + v_old[lin_idx - 1]     // v_{i-1,j} --> this is R*v
+                        + v_old[lin_idx + nx]    // v_{i,j+1} -->
+                        + v_old[lin_idx - nx])); // v_{i,j-1} -->
 
                 // compute difference between iteration k and k-1
-                d = fabs(v_new[nx * iy + ix] - v_old[nx * iy + ix]);
+                d = fabs(v_new[lin_idx] - v_old[lin_idx]);
                 e = (d > e) ? d : e;
-                w += fabs(v_new[nx * iy + ix]);
+                w += fabs(v_new[lin_idx]);
               }
           }
 
-// #pragma omp barrier
+          // #pragma omp barrier
 
-// Update v and compute error as well as error weight factor
-#pragma omp master
-        {
-          swap  = v_new;
-          v_new = v_old;
-          v_old = swap;
-        }
+          // Update v and compute error as well as error weight factor
 
 #pragma omp barrier
 
@@ -106,10 +101,10 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
 #pragma omp for reduction(+ : w)
           for (int ix = 1; ix < (nx - 1); ix++) {
             // y = 0
-            v_old[nx * 0 + ix] = v_old[nx * (ny - 2) + ix];
+            v_new[nx * 0 + ix] = v_new[nx * (ny - 2) + ix];
             // y = NY
-            v_old[nx * (ny - 1) + ix] = v_old[nx * 1 + ix];
-            w += fabs(v_old[nx * 0 + ix]) + fabs(v_old[nx * (ny - 1) + ix]);
+            v_new[nx * (ny - 1) + ix] = v_new[nx * 1 + ix];
+            w += fabs(v_new[nx * 0 + ix]) + fabs(v_new[nx * (ny - 1) + ix]);
           }
 
           // #pragma omp barrier
@@ -117,10 +112,10 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
 #pragma omp for reduction(+ : w)
           for (int iy = 1; iy < (ny - 1); iy++) {
             // x = 0
-            v_old[nx * iy + 0] = v_old[nx * iy + (nx - 2)];
+            v_new[nx * iy + 0] = v_new[nx * iy + (nx - 2)];
             // x = NX
-            v_old[nx * iy + (nx - 1)] = v_old[nx * iy + 1];
-            w += fabs(v_old[nx * iy + 0]) + fabs(v_old[nx * iy + (nx - 1)]);
+            v_new[nx * iy + (nx - 1)] = v_new[nx * iy + 1];
+            w += fabs(v_new[nx * iy + 0]) + fabs(v_new[nx * iy + (nx - 1)]);
           }
 
           // #pragma omp barrier
@@ -128,6 +123,10 @@ solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
           // update weight by domain size
 #pragma omp master
         {
+          swap  = v_new;
+          v_new = v_old;
+          v_old = swap;
+
           w /= size;
           // update difference of consecutive iterations
           e /= w;
