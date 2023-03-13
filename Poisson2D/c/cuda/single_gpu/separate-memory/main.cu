@@ -31,13 +31,13 @@
 #include <stdlib.h>
 
 #ifndef NX
-#  define NX 512
+#  define NX 2048
 #endif
 #ifndef NY
-#  define NY 512
+#  define NY 2048
 #endif
 #ifndef BLOCK_SIZE
-#  define BLOCK_SIZE 16
+#  define BLOCK_SIZE 32
 #endif
 #define NMAX 200000
 #define SUB_ITER 100
@@ -77,6 +77,9 @@ main() {
   size_t sol_size_bytes = sol_size * sizeof(double);
 
   int block_dim = BLOCK_SIZE * BLOCK_SIZE;
+
+  dim3 boundaryGrid(((NX - 2) + (NY - 2) + block_dim - 1) / block_dim, 2);
+  dim3 boundaryBlock(block_dim);
 
   dim3 errorGrid(((sol_size) + block_dim - 1) / block_dim);
   dim3 errorBlock(block_dim);
@@ -123,8 +126,8 @@ main() {
   cudaMemcpy(d_v, h_v, sol_size_bytes, cudaMemcpyHostToDevice);
   cudaMemcpy(d_vp, h_vp, sol_size_bytes, cudaMemcpyHostToDevice);
   cudaMemcpy(d_f, h_f, sol_size_bytes, cudaMemcpyHostToDevice);
-  cudaMemcpy(d_w, h_w, diff_size_bytes, cudaMemcpyHostToDevice);
-  cudaMemcpy(d_e, h_e, diff_size_bytes, cudaMemcpyHostToDevice);
+  // cudaMemcpy(d_w, h_w, diff_size_bytes, cudaMemcpyHostToDevice);
+  // cudaMemcpy(d_e, h_e, diff_size_bytes, cudaMemcpyHostToDevice);
 
   cudaEvent_t start, end;
   cudaEventCreate(&start);
@@ -138,10 +141,10 @@ main() {
     while (e_max > EPS && n < NMAX) {
         for (int i = 0; i < SUB_ITER / 2; i++) {
           solver<<<jacobiGrid, jacobiBlock>>>(d_v, d_f, NX, NY, d_vp);
-          apply_bcs<<<jacobiGrid, jacobiBlock>>>(d_vp, NX, NY);
+          apply_bcs<<<boundaryGrid, boundaryBlock>>>(d_vp, NX, NY);
           // vp - updated solution
           solver<<<jacobiGrid, jacobiBlock>>>(d_vp, d_f, NX, NY, d_v);
-          apply_bcs<<<jacobiGrid, jacobiBlock>>>(d_v, NX, NY);
+          apply_bcs<<<boundaryGrid, boundaryBlock>>>(d_v, NX, NY);
           // v - updated solution
         }
       compute_error<<<errorGrid, errorBlock>>>(d_v, d_vp, sol_size, d_e, d_w);

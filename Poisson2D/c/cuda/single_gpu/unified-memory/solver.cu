@@ -96,18 +96,30 @@ __global__ void
 apply_bcs(double *v, const int nx, const int ny) {
   // thread coordinates
   const int tx = blockIdx.x * blockDim.x + threadIdx.x + 1;
-  const int ty = blockIdx.y * blockDim.y + threadIdx.y + 1;
 
-    if ((tx < (nx - 1)) && (ty < (ny - 1))) {
-      // y = 0
-      v[tx] = v[nx * (ny - 2) + tx];
-      // y = NY
-      v[nx * (ny - 1) + tx] = v[nx + tx];
-      // x = 0
-      v[nx * ty] = v[nx * ty + (nx - 2)];
-      // x = NX
-      v[nx * ty + (nx - 1)] = v[nx * ty + 1];
-  }
+    if (blockIdx.y == 0) {
+        if (tx < (nx - 1)) {
+          // y = 0
+          v[tx] = v[nx * (ny - 2) + tx];
+        } else {
+          const int ty = tx - (nx - 2);
+            if (ty < (ny - 1)) {
+              // x = NX
+              v[nx * ty + (nx - 1)] = v[nx * ty + 1];
+          }
+        }
+    } else {
+        if (tx < (nx - 1)) {
+          // y = NY
+          v[nx * (ny - 1) + tx] = v[nx + tx];
+        } else {
+          const int ty = tx - (nx - 2);
+            if (ty < (ny - 1)) {
+              // x = 0
+              v[nx * ty] = v[nx * ty + (nx - 2)];
+          }
+        }
+    }
 }
 
 __global__ void
