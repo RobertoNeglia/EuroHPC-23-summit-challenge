@@ -2,7 +2,7 @@
 
 ## Run at Server
 To run serial solver directly execute 
-```sbatch mpi_batch_job.sh```
+```sbatch batch_mpi.sh```
 
 Check status of job
 ```squeue```
@@ -12,4 +12,4 @@ Check solution at corresponding output file (```.out```)
 1. Build
 ```make ```
 2. Run
-```./main```
+```./main.out```

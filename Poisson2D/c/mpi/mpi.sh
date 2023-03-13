@@ -8,6 +8,7 @@
 
 #Load OpenMPI module
 module load OpenMPI
+mpicc --version
 
 echo "===Compile Phase==="
 #Clean before compile
@@ -18,6 +19,6 @@ make
 
 echo "===Execution Phase==="
 #Execute the program
-srun ./main
+srun ./main.out
 
 echo "===END==="

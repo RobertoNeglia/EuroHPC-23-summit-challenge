@@ -36,7 +36,7 @@
 
 int
 solver(double *v, double *f, int nx, int ny, double eps, int nmax) {
-  int n_cores = 64;
+  int n_cores = omp_get_max_threads();
   int n_threads;
 
   const int size = nx * ny;

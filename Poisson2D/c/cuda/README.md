@@ -1,8 +1,8 @@
-# Reference Serial 2D Poisson Solver
+# OpenMPI 2D Poisson Solver
 
 ## Run at Server
 To run serial solver directly execute 
-```sbatch reference_batch_job.sh```
+```sbatch **specific bash file**.sh```
 
 Check status of job
 ```squeue```

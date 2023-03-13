@@ -11,7 +11,7 @@ TARGET = main
 LIBS = -lm
 
 $(TARGET): $(TARGET).c
-	$(CC) $(CFLAGS) $(LIBS) -o $(TARGET) *.c
+	$(CC) $(CFLAGS) $(LIBS) -o $(TARGET).out *.c
  
 clean:
-	$(RM) $(TARGET)
+	$(RM) $(TARGET).out
